@@ -14,9 +14,34 @@ namespace RLP_CSharp
         private const int LONG_LIST_OFFSET = 0xf7;
     
         public static byte[] Encode(string str)
-        {          
+        {
+            if(String.IsNullOrEmpty(str))
+            {
+                return new byte[]{ SHORT_ITEM_OFFSET };
+            }
             byte[] bytes = Encoding.UTF8.GetBytes(str);
             return Encode(bytes);
+        }
+
+        public static byte[] Encode(string[] array)
+        {
+            if(array == null || array.Length == 0)
+            {
+                return new byte[]{ SHORT_LIST_OFFSET };
+            }
+
+            var data = array.Select(s => Encode(s)).SelectMany(b => b).ToArray();
+            if(data.Length < 56)
+            {
+                var prefix = (byte)(SHORT_LIST_OFFSET + data.Length);
+                return new List<byte>().Append(prefix).Concat(data).ToArray();
+            }
+            else
+            {
+                var lenBytes = GetExactBytes(data);
+                var prefix = (byte)(LONG_LIST_OFFSET + lenBytes.Length);
+                return new List<byte>().Append(prefix).Concat(lenBytes).Concat(data).ToArray();
+            }
         }
         
         public static byte[] Encode(byte[] bytes)
@@ -32,7 +57,6 @@ namespace RLP_CSharp
             }
             else
             {
-                //    len >>= 8;
                 byte[] lenBytes = GetExactBytes(bytes);
                 var prefix = (byte)(LONG_ITEM_OFFSET + lenBytes.Length);
                 return new List<byte>().Append(prefix).Concat(lenBytes).Concat(bytes).ToArray();
