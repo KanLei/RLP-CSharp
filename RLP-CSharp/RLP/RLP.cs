@@ -7,20 +7,24 @@ namespace RLP_CSharp
 {
     public class RLP
     {
-        private const int SIZE_THRESHOLD = 56;
-        private const int SHORT_ITEM_OFFSET = 0x80;
-        private const int LONG_ITEM_OFFSET = 0xb7;
-        private const int SHORT_LIST_OFFSET = 0xc0;
-        private const int LONG_LIST_OFFSET = 0xf7;
-    
+        private const int DELTA_SIZE = 55;
+        private static readonly double MAX_BYTE_LENGTH = Math.Pow(256, 8);
+        private const int SHORT_ITEM_OFFSET = 0x80; // ~ 0xb7 = 0x80 + 55
+        private const int SHORT_LIST_OFFSET = 0xc0; // ~ 0xf7 = 0xc0 + 55
+
         public static byte[] Encode(string str)
         {
             if(String.IsNullOrEmpty(str))
             {
                 return new byte[]{ SHORT_ITEM_OFFSET };
             }
+
             byte[] bytes = Encoding.UTF8.GetBytes(str);
-            return Encode(bytes);
+            if (bytes.Length == 1 && bytes[0] < 0x80)
+            {
+                return bytes;
+            }
+            return Encode(bytes, SHORT_ITEM_OFFSET);
         }
 
         public static byte[] Encode(string[] array)
@@ -31,35 +35,25 @@ namespace RLP_CSharp
             }
 
             var data = array.Select(s => Encode(s)).SelectMany(b => b).ToArray();
-            if(data.Length < 56)
-            {
-                var prefix = (byte)(SHORT_LIST_OFFSET + data.Length);
-                return new List<byte>().Append(prefix).Concat(data).ToArray();
-            }
-            else
-            {
-                var lenBytes = GetExactBytes(data);
-                var prefix = (byte)(LONG_LIST_OFFSET + lenBytes.Length);
-                return new List<byte>().Append(prefix).Concat(lenBytes).Concat(data).ToArray();
-            }
+            return Encode(data, SHORT_LIST_OFFSET);
         }
         
-        public static byte[] Encode(byte[] bytes)
+        public static byte[] Encode(byte[] bytes, int offset)
         {
-            if (bytes.Length == 1 && bytes[0] < 0x80)
+            if(bytes.Length <= DELTA_SIZE)
             {
-                return bytes;
-            }
-            else if(bytes.Length < 56)
-            {
-                var prefix = (byte)(SHORT_ITEM_OFFSET + bytes.Length);
+                var prefix = (byte)(offset + bytes.Length);
                 return new List<byte>().Append(prefix).Concat(bytes).ToArray();
+            }
+            else if(bytes.Length < MAX_BYTE_LENGTH)
+            {
+                byte[] lenBytes = GetExactBytes(bytes);
+                var prefix = (byte)(offset + DELTA_SIZE + lenBytes.Length);
+                return new List<byte>().Append(prefix).Concat(lenBytes).Concat(bytes).ToArray();
             }
             else
             {
-                byte[] lenBytes = GetExactBytes(bytes);
-                var prefix = (byte)(LONG_ITEM_OFFSET + lenBytes.Length);
-                return new List<byte>().Append(prefix).Concat(lenBytes).Concat(bytes).ToArray();
+                throw new ArgumentException("Input too long");
             }
         }
         
@@ -70,6 +64,39 @@ namespace RLP_CSharp
                 return dst.Reverse().SkipWhile(b => b == 0).ToArray();
             else
                 return dst.SkipWhile(b => b == 0).ToArray();
+        }
+
+        public static string Decode(byte[] array)
+        {
+            var prefix = array[0];
+            if(prefix <= 0x7F)
+            {
+                return Convert.ToString(prefix);
+            }
+            else if(prefix <= 0xB7)
+            {
+                int len = prefix - 0x80;
+                return Encoding.UTF8.GetString(array, 1, len);
+            }
+            else if(prefix <= 0xBF)
+            {
+                var lenOfLen = prefix - 0xB7;
+                var data = array.Skip(1).Take(lenOfLen).ToArray();
+                int len = 0;
+                if(data.Length == 1)
+                {
+                    len = Convert.ToInt32(data[0]);
+                }
+                else
+                {
+                    len = BitConverter.ToInt32(data);
+                }
+                return Encoding.UTF8.GetString(array, 1 + lenOfLen, len);
+            }
+            else
+            {
+                throw new ArgumentException("Input don't conform RLP encoding form");
+            }
         }
     }
 }
