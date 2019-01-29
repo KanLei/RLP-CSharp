@@ -2,6 +2,7 @@ using System;
 using System.Text;
 using System.Collections.Generic;
 using System.Linq;
+using System.Collections;
 
 namespace RLP_CSharp
 {
@@ -27,15 +28,31 @@ namespace RLP_CSharp
             return Encode(bytes, SHORT_ITEM_OFFSET);
         }
 
-        public static byte[] Encode(string[] array)
+        public static byte[] Encode(List<string> array)
         {
-            if(array == null || array.Length == 0)
+            if(array == null || array.Count == 0)
             {
                 return new byte[]{ SHORT_LIST_OFFSET };
             }
 
             var data = array.Select(s => Encode(s)).SelectMany(b => b).ToArray();
             return Encode(data, SHORT_LIST_OFFSET);
+        }
+
+        public static byte[] Encode(object obj)
+        {
+            if (obj is string str)
+                return Encode(str);
+            if (obj is IEnumerable list)
+            {
+                List<byte> output = new List<byte>();
+                foreach (object item in list)
+                {
+                    output.AddRange(Encode(item));
+                }
+                return Encode(output.ToArray(), SHORT_LIST_OFFSET);
+            }
+            throw new ArgumentOutOfRangeException($"{nameof(obj)} must be string or list");
         }
         
         public static byte[] Encode(byte[] bytes, int offset)
@@ -69,18 +86,18 @@ namespace RLP_CSharp
         public static string Decode(byte[] array)
         {
             var prefix = array[0];
-            if(prefix <= 0x7F)
+            if(prefix < SHORT_ITEM_OFFSET)
             {
                 return Convert.ToString(prefix);
             }
-            else if(prefix <= 0xB7)
+            else if(prefix <= SHORT_ITEM_OFFSET + DELTA_SIZE)
             {
-                int len = prefix - 0x80;
+                int len = prefix - SHORT_ITEM_OFFSET;
                 return Encoding.UTF8.GetString(array, 1, len);
             }
-            else if(prefix <= 0xBF)
+            else if(prefix < SHORT_LIST_OFFSET)
             {
-                var lenOfLen = prefix - 0xB7;
+                var lenOfLen = prefix - (SHORT_ITEM_OFFSET + DELTA_SIZE);
                 var data = array.Skip(1).Take(lenOfLen).ToArray();
                 int len = 0;
                 if(data.Length == 1)

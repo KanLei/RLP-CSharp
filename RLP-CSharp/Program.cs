@@ -1,5 +1,7 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 
 namespace RLP_CSharp
 {
@@ -7,9 +9,9 @@ namespace RLP_CSharp
     {
         static void Main(string[] args)
         {   
-            byte[] emptyStr = RLP.Encode("");
-            Console.WriteLine(BitConverter.ToString(emptyStr));
-            System.Console.WriteLine(RLP.Decode(emptyStr));
+            // byte[] emptyStr = RLP.Encode("");
+            // Console.WriteLine(BitConverter.ToString(emptyStr));
+            // System.Console.WriteLine(RLP.Decode(emptyStr));
 
             // [ 0x83, 'd', 'o', 'g' ]
             // byte[] shortStr = RLP.Encode("dog");
@@ -24,6 +26,16 @@ namespace RLP_CSharp
 
             // byte[] bytes = RLP.Encode(new string[]{"this is a very long list", "you never guess how long it is", "indeed, how did you know it was this long", "good job, that I can tell you in honestlyyyyy"});
             // Console.Write(String.Join(',', bytes));
+            object obj = new List<object>(){
+                new List<string>(),
+                "dog",
+                new List<string>(){"cat"},
+                ""
+            };
+            byte[] bytes = RLP.Encode(obj);
+            Console.WriteLine(BitConverter.ToString(bytes));
+            System.Console.WriteLine(BitConverter.ToString(Encoding.UTF8.GetBytes("dog")));
+            System.Console.WriteLine(BitConverter.ToString(Encoding.UTF8.GetBytes("cat")));
         }
     }
 }
